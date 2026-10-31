@@ -10,6 +10,9 @@ const DEFAULTS = {
   ollamaHost: 'http://127.0.0.1:11434',
   model: '',
   temperature: 0.7,
+  secondPass: true,
+  saveLayout: 'lightened', // 'lightened' = YYYY/MM/DD Title.ld3, 'flat' = YYYY-MM-DD Title.ld3
+  categoriesDirectory: '',
 };
 
 class Store {

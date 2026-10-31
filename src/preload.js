@@ -13,6 +13,15 @@ contextBridge.exposeInMainWorld('api', {
   deleteDream: (file) => ipcRenderer.invoke('dream:delete', file),
   revealDream: (file) => ipcRenderer.invoke('dream:reveal', file),
 
+  getCategories: () => ipcRenderer.invoke('categories:get'),
+  analyseCategories: (text) => ipcRenderer.invoke('categories:analyse', text),
+  saveCategoryItem: (item) => ipcRenderer.invoke('categories:saveItem', item),
+  deleteCategoryItem: (file) => ipcRenderer.invoke('categories:deleteItem', file),
+  createCategoryGroup: (name) => ipcRenderer.invoke('categories:createGroup', name),
+  ignoreWord: (word) => ipcRenderer.invoke('categories:ignore', word),
+  createCategoriesRoot: () => ipcRenderer.invoke('categories:createRoot'),
+  chooseCategoriesRoot: () => ipcRenderer.invoke('categories:choose'),
+
   getSession: (file) => ipcRenderer.invoke('session:get', file),
   saveSession: (file, data) => ipcRenderer.invoke('session:save', file, data),
 
