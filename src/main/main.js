@@ -5,6 +5,7 @@ const fs = require('fs');
 const { Store } = require('./store');
 const dreams = require('./dreams');
 const ollama = require('./ollama');
+const categories = require('./categories');
 
 let win = null;
 let store = null;
@@ -45,6 +46,49 @@ function createWindow() {
   });
 }
 
+/* ---------- Categories (cached; invalidated whenever they change) ---------- */
+let catCache = null;
+
+async function categoriesRoot() {
+  const s = store.getSettings();
+  if (s.categoriesDirectory && fs.existsSync(s.categoriesDirectory)) return { root: s.categoriesDirectory, detected: false };
+  const root = await categories.detectRoot(s.directories);
+  return { root, detected: !!root };
+}
+
+async function getCategories() {
+  if (catCache) return catCache;
+  const { root, detected } = await categoriesRoot();
+  if (!root) return (catCache = { root: null, groups: [], items: [], ignore: new Set(), matcher: categories.buildMatcher([]) });
+  const data = await categories.load(root);
+  return (catCache = { ...data, detected, matcher: categories.buildMatcher(data.items) });
+}
+
+const tagKey = (item) => `${item.group}\\${item.name}`;
+
+function publicCategories(c) {
+  return {
+    root: c.root,
+    detected: !!c.detected,
+    ignoreFile: c.root ? categories.ignoreFileFor(c.root) : null,
+    ignoreCount: c.ignore.size,
+    groups: c.groups.map((g) => ({
+      path: g.path,
+      name: g.name,
+      parent: g.parent,
+      items: g.items.map((i) => ({ key: tagKey(i), file: i.file, name: i.name, description: i.description, names: i.names, group: i.group })),
+    })),
+  };
+}
+
+async function scanDreams() {
+  const c = await getCategories();
+  return dreams.scan(store.getSettings().directories, {
+    skip: [c.root],
+    tag: (text) => c.matcher.match(text).map(({ item }) => tagKey(item)),
+  });
+}
+
 function ensureSaveDirectory() {
   const s = store.getSettings();
   if (s.saveDirectory) return s.saveDirectory;
@@ -57,9 +101,13 @@ function ensureSaveDirectory() {
 function registerIpc() {
   const withDefaults = (s) => ({ ...s, defaultFolder: defaultDreamFolder() });
   ipcMain.handle('settings:get', () => withDefaults(store.getSettings()));
-  ipcMain.handle('settings:set', (_e, patch) => withDefaults(store.setSettings(patch)));
+  ipcMain.handle('settings:set', (_e, patch) => {
+    catCache = null;
+    return withDefaults(store.setSettings(patch));
+  });
 
   ipcMain.handle('dirs:add', async () => {
+    catCache = null;
     const r = await dialog.showOpenDialog(win, {
       title: 'Add a dream folder',
       properties: ['openDirectory', 'createDirectory', 'multiSelections'],
@@ -69,15 +117,22 @@ function registerIpc() {
     return withDefaults(store.setSettings({ directories: [...s.directories, ...r.filePaths] }));
   });
   ipcMain.handle('dirs:remove', (_e, dir) => {
+    catCache = null;
     const s = store.getSettings();
     return withDefaults(store.setSettings({ directories: s.directories.filter((d) => d !== dir) }));
   });
 
-  ipcMain.handle('dreams:list', () => dreams.scan(store.getSettings().directories));
+  ipcMain.handle('dreams:list', () => scanDreams());
   ipcMain.handle('dream:read', async (_e, file) => ({ path: file, fields: await dreams.readDreamFile(file) }));
   ipcMain.handle('dream:save', async (_e, payload) => {
     const saveDir = payload.path ? null : ensureSaveDirectory();
-    return dreams.saveDream(payload, saveDir);
+    const c = await getCategories();
+    const fields = { ...payload.fields };
+    // Re-tag the dream like Lightened Dream does on save (only when a categories folder exists).
+    if (c.root && typeof fields.Dream === 'string') {
+      fields.SubCategories = categories.subCategoriesXml(c.matcher.match(`${fields.Title || ''} ${fields.Dream}`));
+    }
+    return dreams.saveDream({ ...payload, fields }, saveDir, { layout: store.getSettings().saveLayout });
   });
   ipcMain.handle('dream:delete', async (_e, file) => {
     const r = await dialog.showMessageBox(win, {
@@ -94,6 +149,70 @@ function registerIpc() {
     return true;
   });
   ipcMain.handle('dream:reveal', (_e, file) => shell.showItemInFolder(file));
+
+  ipcMain.handle('categories:get', async () => publicCategories(await getCategories()));
+  ipcMain.handle('categories:analyse', async (_e, text) => {
+    const c = await getCategories();
+    return {
+      matches: c.matcher.match(text).map(({ item, keyword }) => ({ key: tagKey(item), group: item.group, name: item.name, file: item.file, keyword })),
+      unassigned: c.root ? categories.unassignedWords(text, c.matcher, c.ignore) : [],
+    };
+  });
+  ipcMain.handle('categories:saveItem', async (_e, item) => {
+    const c = await getCategories();
+    if (!c.root) throw new Error('No categories folder');
+    // Rebuild the item's cached <Dreams> index, as Lightened Dream does when saving a category.
+    const one = categories.buildMatcher([{ ...item, names: item.names || [] }]);
+    const all = await dreams.scan(store.getSettings().directories, { skip: [c.root], tag: (t) => (one.match(t).length ? ['x'] : []) });
+    const index = all.filter((d) => d.tags.length).map((d) => ({ date: d.date, title: d.title }));
+    const file = await categories.saveItem(c.root, item, index);
+    catCache = null;
+    return file;
+  });
+  ipcMain.handle('categories:deleteItem', async (_e, file) => {
+    const r = await dialog.showMessageBox(win, {
+      type: 'warning',
+      buttons: ['Move to trash', 'Cancel'],
+      defaultId: 1,
+      cancelId: 1,
+      message: `Delete the category item "${path.basename(file, '.ld3')}"?`,
+      detail: 'Dreams are not changed; they just stop being tagged with it.',
+    });
+    if (r.response !== 0) return false;
+    await shell.trashItem(file);
+    catCache = null;
+    return true;
+  });
+  ipcMain.handle('categories:createGroup', async (_e, name) => {
+    const c = await getCategories();
+    if (!c.root) throw new Error('No categories folder');
+    const clean = String(name || '').replace(/[<>:"/\\|?*\u0000-\u001f]/g, '').trim();
+    if (!clean) throw new Error('Enter a group name');
+    fs.mkdirSync(path.join(c.root, clean), { recursive: true });
+    catCache = null;
+    return clean;
+  });
+  ipcMain.handle('categories:ignore', async (_e, word) => {
+    const c = await getCategories();
+    if (!c.root) throw new Error('No categories folder');
+    await categories.addIgnore(c.root, word);
+    catCache = null;
+  });
+  ipcMain.handle('categories:createRoot', async () => {
+    const saveDir = ensureSaveDirectory();
+    const base = path.basename(saveDir).toLowerCase() === 'dreams' ? path.dirname(saveDir) : saveDir;
+    const root = await categories.createRoot(base);
+    store.setSettings({ categoriesDirectory: root });
+    catCache = null;
+    return root;
+  });
+  ipcMain.handle('categories:choose', async () => {
+    const r = await dialog.showOpenDialog(win, { title: 'Choose your Lightened Dream "Categories" folder', properties: ['openDirectory'] });
+    if (r.canceled) return null;
+    store.setSettings({ categoriesDirectory: r.filePaths[0] });
+    catCache = null;
+    return r.filePaths[0];
+  });
 
   ipcMain.handle('session:get', (_e, file) => store.getSession(file));
   ipcMain.handle('session:save', (_e, file, data) => store.saveSession(file, data));

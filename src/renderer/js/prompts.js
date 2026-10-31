@@ -299,7 +299,56 @@ ${INTERP_FORMAT}`,
     ];
   }
 
+  /* ---------------- Categories: sort unassigned words (fresh thread, JSON) ---------------- */
+
+  const GROUP_HINTS = {
+    characters: 'people, animals, creatures and beings',
+    locations: 'places, buildings, rooms and landscapes',
+    objects: 'physical things and items',
+    actions: 'things done or happening (verbs, events)',
+    themes: 'abstract ideas, situations and concepts',
+    emotions: 'feelings and moods',
+  };
+
+  function sortWordsSchema(groups) {
+    return {
+      type: 'object',
+      properties: {
+        assignments: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: { word: { type: 'string' }, group: { type: 'string', enum: [...groups, 'ignore'] } },
+            required: ['word', 'group'],
+          },
+        },
+      },
+      required: ['assignments'],
+    };
+  }
+
+  function sortWords(words, groups) {
+    const list = groups.map((g) => `- ${g}${GROUP_HINTS[g.toLowerCase()] ? `: ${GROUP_HINTS[g.toLowerCase()]}` : ''}`).join('\n');
+    return [
+      { role: 'system', content: 'You sort words from a dream journal into categories. You output JSON only.' },
+      {
+        role: 'user',
+        content: `Categories:
+${list}
+
+For each word below, choose the single best category from the list above. Use "ignore" for words that are too generic or vague to be worth tracking across dreams (e.g. "really", "place", "started").
+
+Words:
+${words.map((w) => `- ${w}`).join('\n')}
+
+Return JSON: {"assignments":[{"word":"...","group":"..."}]} with one entry per word, using the category names exactly as written.`,
+      },
+    ];
+  }
+
   window.Prompts = {
+    sortWords,
+    sortWordsSchema,
     DETAIL_SCHEMA,
     ANALYSES,
     listDetails,

@@ -8,7 +8,11 @@ const ld3 = require('./ld3');
 
 const MAX_DEPTH = 12;
 
-async function findLd3Files(dir, depth = 0, out = []) {
+// Lightened Dream support documents that this app understands (not dreams, but not "unsupported" either).
+const SUPPORTED_NON_DREAMS = new Set(['category', 'lighteneddream']);
+
+async function findLd3Files(dir, depth = 0, out = [], skip = new Set()) {
+  if (skip.has(path.resolve(dir))) return out;
   let entries;
   try {
     entries = await fsp.readdir(dir, { withFileTypes: true });
@@ -19,7 +23,7 @@ async function findLd3Files(dir, depth = 0, out = []) {
     if (e.name.startsWith('.')) continue;
     const p = path.join(dir, e.name);
     if (e.isDirectory()) {
-      if (depth < MAX_DEPTH && e.name !== 'node_modules') await findLd3Files(p, depth + 1, out);
+      if (depth < MAX_DEPTH && e.name !== 'node_modules') await findLd3Files(p, depth + 1, out, skip);
     } else if (/\.ld3$/i.test(e.name)) {
       out.push(p);
     }
@@ -33,13 +37,18 @@ async function readDreamFile(file) {
   return ld3.parse(text);
 }
 
-/** Scan all directories and return a lightweight summary of every dream found. */
-async function scan(directories) {
+/**
+ * Scan all directories and return a lightweight summary of every dream found.
+ * `options.skip` lists folders not to descend into (e.g. the categories folder);
+ * `options.tag(text)` returns the category keys a dream's text matches.
+ */
+async function scan(directories, { skip = [], tag = null } = {}) {
+  const skipSet = new Set(skip.filter(Boolean).map((d) => path.resolve(d)));
   const seen = new Set();
   const files = [];
   for (const dir of directories) {
     const root = path.resolve(dir);
-    for (const f of await findLd3Files(root)) {
+    for (const f of await findLd3Files(root, 0, [], skipSet)) {
       if (!seen.has(f)) {
         seen.add(f);
         files.push({ file: f, root });
@@ -61,15 +70,18 @@ async function scan(directories) {
           clarity: d.Clarity,
           excerpt: d.Dream.slice(0, 220),
           hasInterpretation: /==== Dream Interpretation ====/.test(d.Comments),
+          tags: tag ? tag(`${d.Title} ${d.Dream}`) : [],
           mtime: st.mtimeMs,
         };
       } catch (err) {
-        // Not a dream (another Lightened Dream document type) or unreadable: flagged as unsupported.
+        // Category items and the ignore list are handled by the categories feature.
+        if (err.kind && SUPPORTED_NON_DREAMS.has(err.kind.toLowerCase())) return null;
+        // Any other non-dream document (checks, readings, REM cycles…) or an unreadable file: flagged as unsupported.
         return { path: file, root, relDir: path.relative(root, path.dirname(file)), unsupported: true, kind: err.kind || 'unreadable', reason: err.message, title: path.basename(file) };
       }
     }),
   );
-  return results;
+  return results.filter(Boolean);
 }
 
 function sanitiseFileName(s) {
@@ -91,7 +103,7 @@ function uniquePath(dir, base) {
  * Save a dream. Existing files are updated in place (preserving encoding, line
  * endings and unknown content); new files are created in saveDir.
  */
-async function saveDream({ path: file, fields }, saveDir) {
+async function saveDream({ path: file, fields }, saveDir, { layout = 'flat' } = {}) {
   if (file && fs.existsSync(file)) {
     const buf = await fsp.readFile(file);
     const decoded = ld3.decodeBuffer(buf);
@@ -100,8 +112,16 @@ async function saveDream({ path: file, fields }, saveDir) {
     return file;
   }
   if (!saveDir) throw new Error('No folder selected for saving new dreams');
-  await fsp.mkdir(saveDir, { recursive: true });
-  const target = file || uniquePath(saveDir, sanitiseFileName(`${fields.Date || ''} ${fields.Title || ''}`));
+  let dir = saveDir;
+  let base = sanitiseFileName(`${fields.Date || ''} ${fields.Title || ''}`);
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(fields.Date || '');
+  if (layout === 'lightened' && m) {
+    // Lightened Dream layout: Dreams/YYYY/MM/DD Title.ld3
+    dir = path.join(saveDir, m[1], m[2]);
+    base = sanitiseFileName(`${m[3]} ${fields.Title || ''}`);
+  }
+  await fsp.mkdir(dir, { recursive: true });
+  const target = file || uniquePath(dir, base);
   await writeAtomic(target, Buffer.from(ld3.create(fields, os.EOL), 'utf8'));
   return target;
 }

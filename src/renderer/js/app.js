@@ -130,6 +130,13 @@
   function showView(name) {
     $$('.view').forEach((v) => v.classList.toggle('active', v.id === `view-${name}`));
     document.body.dataset.view = name;
+    $$('.nav-btn').forEach((b) => b.classList.toggle('active', b.dataset.nav === (name === 'categories' ? 'categories' : 'journal')));
+  }
+
+  /** Leave the open dream (saving it) before navigating elsewhere. */
+  async function leaveTo(fn) {
+    if (S.cur) await leaveSession();
+    fn();
   }
 
   /* ------------------------------------------------------------------ */
@@ -503,7 +510,9 @@
           .map((p) => `<p>${p.replace(/\n/g, '<br>')}</p>`)
           .join('') || '<p class="muted">No recollection recorded.</p>'
       }</div>
-      <button class="btn ghost small" data-action="edit-dream">${icon('edit')}Edit dream</button>`;
+      <button class="btn ghost small" data-action="edit-dream">${icon('edit')}Edit dream</button>
+      <div id="dreamCats" class="dream-cats"></div>`;
+    window.Categories.renderDreamCats();
   }
 
   const typingDots = '<span class="typing"><i></i><i></i><i></i></span>';
@@ -1260,6 +1269,8 @@
     $('#tempInput').value = S.settings.temperature;
     $('#tempValue').textContent = Number(S.settings.temperature).toFixed(2);
     $('#secondPassInput').checked = S.settings.secondPass !== false;
+    $('#layoutInput').checked = S.settings.saveLayout !== 'flat';
+    renderCatRoot();
     $('#hostStatus').textContent = S.ollamaOk ? `Connected · ${S.models.length} models available` : 'Not connected';
     renderDirList();
     renderModelSelects();
@@ -1274,6 +1285,13 @@
       await loadModels();
     }
     refreshDreams();
+  }
+
+  async function renderCatRoot() {
+    const c = await window.Categories.load(true);
+    $('#catRootPath').innerHTML = c.root
+      ? `<bdi dir="ltr">${esc(c.root)}</bdi>${c.detected ? ' <small class="muted">(found automatically)</small>' : ''}`
+      : '<span class="muted">None — set one up from the Categories screen</span>';
   }
 
   function renderDirList() {
@@ -1298,6 +1316,9 @@
   /* ------------------------------------------------------------------ */
   function bindEvents() {
     $('#homeBtn').addEventListener('click', () => goHome());
+    $$('.nav-btn').forEach((b) =>
+      b.addEventListener('click', () => (b.dataset.nav === 'categories' ? leaveTo(() => window.Categories.open()) : goHome())),
+    );
     $('#newDreamBtn').addEventListener('click', () => openForm('new', 'home'));
     $('#rescanBtn').addEventListener('click', () => refreshDreams().then(() => toast('Journal refreshed', 'success', 1800)));
     $('#addDirBtn').addEventListener('click', async () => {
@@ -1471,6 +1492,16 @@
     $('#tempInput').addEventListener('change', async (e) => {
       S.settings = await api.setSettings({ temperature: Number(e.target.value) });
     });
+    $('#layoutInput').addEventListener('change', async (e) => {
+      S.settings = await api.setSettings({ saveLayout: e.target.checked ? 'lightened' : 'flat' });
+    });
+    $('#catRootBtn').addEventListener('click', async () => {
+      if (await api.chooseCategoriesRoot()) {
+        S.settings = await api.getSettings();
+        window.Categories.invalidate();
+        renderCatRoot();
+      }
+    });
     $('#secondPassInput').addEventListener('change', async (e) => {
       S.settings = await api.setSettings({ secondPass: e.target.checked });
     });
@@ -1505,6 +1536,8 @@
   }
 
   async function init() {
+    window.App = { S, api, $, $$, esc, U, P, icon, toast, cleanErr, showView, openDream, refreshDreams, llm, ensureModel, scheduleSave, leaveTo };
+    window.Categories.init();
     window.hydrateIcons();
     setupRatings();
     S.settings = await api.getSettings();

@@ -157,6 +157,43 @@ test('non-dream .ld3 documents (Lightened Dream checks, readings, …) are detec
   fs.writeFileSync(path.join(dir, 'Time.ld3'), '<Check>\n  <Title>Time</Title>\n</Check>\n');
   const list = await dreams.scan([dir]);
   const bad = list.filter((d) => d.unsupported).map((d) => d.kind).sort();
-  assert.deepEqual(bad, ['Check', 'LightenedDream']);
+  assert.deepEqual(bad, ['Check'], 'the ignore list (<LightenedDream>) is used by categories, so not flagged');
   assert.equal(list.filter((d) => !d.unsupported).length, 1);
+});
+
+const categories = require('../src/main/categories');
+
+test('categories: Lightened Dream item files round-trip and tag dreams', async () => {
+  const fear = categories.parseItem(
+    "<Category>\r\n  <Name>Fear</Name>\r\n  <Description>\r\n  </Description>\r\n  <Names>\r\n    <Name>Scared</Name>\r\n    <Name>Worry</Name>\r\n  </Names>\r\n  <Dreams><Year Value='2026'><Month Value='10'><Dream Date='2026-10-01' Title='x' /></Month></Year></Dreams>\r\n</Category>",
+  );
+  assert.deepEqual(fear, { name: 'Fear', description: '', names: ['Scared', 'Worry'] });
+
+  const root = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'cat-')), 'Lightened Dream', 'Categories');
+  await categories.createRoot(path.dirname(root));
+  const file = await categories.saveItem(root, { group: 'Emotions', name: 'Fear', names: ['Scared', 'worry', 'fear', 'falling down'] }, [{ date: '2026-10-01', title: 'A & B' }]);
+  assert.equal(path.basename(file), 'Fear.ld3');
+  const text = fs.readFileSync(file, 'utf8');
+  assert.match(text, /<Dream Date='2026-10-01' Title='A &amp; B' \/>/);
+  await categories.saveItem(root, { group: 'Characters\\Family', name: 'Grandmother', names: ['Nana'] });
+
+  const data = await categories.load(root);
+  assert.deepEqual(data.groups.map((g) => g.path).sort(), ['Actions', 'Characters', 'Characters\\Family', 'Emotions', 'Locations', 'Objects', 'Themes']);
+  const m = categories.buildMatcher(data.items);
+  const hits = m.match("I was scared. Nana's house kept falling down the hill.").map((h) => `${h.item.group}/${h.item.name}`).sort();
+  assert.deepEqual(hits, ['Characters\\Family/Grandmother', 'Emotions/Fear']);
+  assert.match(categories.subCategoriesXml(m.match('scared')), /<Category Path='Emotions'>Fear<\/Category>/);
+
+  await categories.addIgnore(root, 'Hill');
+  const ignore = await categories.readIgnore(root);
+  assert.ok(ignore.has('hill'));
+  assert.deepEqual(categories.unassignedWords('The scared purple elephant walked up the hill quickly', m, ignore), ['purple', 'elephant', 'walked', 'quickly']);
+  assert.equal(await categories.detectRoot([path.join(os.tmpdir(), 'nowhere-xyz')]), null);
+  assert.equal(await categories.detectRoot([path.join(path.dirname(root), 'Dreams')]), root);
+});
+
+test('lightened layout saves new dreams as YYYY/MM/DD Title.ld3', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ld3-'));
+  const p = await dreams.saveDream({ path: null, fields: { Date: '2026-10-31', Title: 'Night', Dream: 'x' } }, dir, { layout: 'lightened' });
+  assert.equal(path.relative(dir, p), path.join('2026', '10', '31 Night.ld3'));
 });

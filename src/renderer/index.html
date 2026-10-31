@@ -19,6 +19,10 @@
           <span class="brand-moon"></span>
           <span class="brand-name">Dream Analyser</span>
         </button>
+        <nav class="nav">
+          <button class="nav-btn active" data-nav="journal" data-icon-left="moon">Journal</button>
+          <button class="nav-btn" data-nav="categories" data-icon-left="star">Categories</button>
+        </nav>
         <div class="spacer"></div>
         <div class="model-picker" title="Ollama model">
           <span id="ollamaDot" class="status-dot"></span>
@@ -109,6 +113,9 @@
             </div>
           </form>
         </section>
+
+        <!-- CATEGORIES -->
+        <section id="view-categories" class="view"></section>
 
         <!-- SESSION -->
         <section id="view-session" class="view">
@@ -218,6 +225,15 @@
           <span><b>Second pass</b> — after the dream's details, explore new leads (people, memories, themes) that came up in your notes</span>
         </label>
 
+        <label class="check">
+          <input type="checkbox" id="layoutInput" />
+          <span><b>Lightened Dream file layout</b> — save new dreams as <code>Year/Month/DD Title.ld3</code> (otherwise <code>YYYY-MM-DD Title.ld3</code>)</span>
+        </label>
+
+        <h3>Categories folder</h3>
+        <div class="dir-list cat-root-row"><span id="catRootPath" class="path"></span>
+          <button id="catRootBtn" class="btn ghost small" data-icon-left="folder">Choose…</button></div>
+
         <h3>Dream folders</h3>
         <p class="muted small">All <code>.ld3</code> files in these folders (and their sub-folders) appear in your journal. New dreams are saved into the folder marked ★.</p>
         <ul id="dirList" class="dir-list"></ul>
@@ -231,11 +247,13 @@
     </div>
 
     <div id="toasts" class="toasts"></div>
+    <div id="chartTip" class="chart-tip" role="tooltip"></div>
 
     <script src="js/icons.js"></script>
     <script src="js/util.js"></script>
     <script src="js/prompts.js"></script>
     <script src="js/sky.js"></script>
+    <script src="js/categories.js"></script>
     <script src="js/app.js"></script>
   </body>
 </html>
