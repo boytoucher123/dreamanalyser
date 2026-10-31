@@ -95,7 +95,8 @@ test('scan finds dreams recursively and saveDream creates unique files', async (
   assert.equal(path.basename(p1), '2026-10-31 Same name.ld3');
   const list = await dreams.scan([dir, dir]);
   assert.equal(list.length, 4);
-  assert.equal(list.filter((d) => d.error).length, 1);
+  assert.equal(list.filter((d) => d.unsupported).length, 1);
+  assert.equal(list.find((d) => d.unsupported).kind, 'unreadable');
   assert.ok(list.some((d) => d.title === 'The flooded library' && d.relDir === path.join('2026', 'Oct')));
 });
 
@@ -142,4 +143,20 @@ test('parseDate handles ISO and day-first dates', () => {
   assert.deepEqual(U.parseDate('2026-10-10'), { y: 2026, m: 10, d: 10 });
   assert.deepEqual(U.parseDate('31/10/2026'), { y: 2026, m: 10, d: 31 });
   assert.equal(U.parseDate(''), null);
+});
+
+test('non-dream .ld3 documents (Lightened Dream checks, readings, …) are detected and flagged', async () => {
+  assert.equal(ld3.rootElement('<?xml version="1.0"?>\n<!-- x -->\n<Check>\n  <Title>Time</Title>\n</Check>'), 'Check');
+  assert.equal(ld3.isDream(SAMPLE), true);
+  assert.equal(ld3.isDream('<LightenedDream><Ignore>a</Ignore></LightenedDream>'), false);
+  assert.throws(() => ld3.parse('<Reading><Title>Relax</Title></Reading>'), /Not a dream/);
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ld3-'));
+  fs.writeFileSync(path.join(dir, 'dream.ld3'), SAMPLE);
+  fs.writeFileSync(path.join(dir, 'IgnoreList.ld3'), '<LightenedDream>\n  <Ignore>a</Ignore>\n</LightenedDream>\n');
+  fs.writeFileSync(path.join(dir, 'Time.ld3'), '<Check>\n  <Title>Time</Title>\n</Check>\n');
+  const list = await dreams.scan([dir]);
+  const bad = list.filter((d) => d.unsupported).map((d) => d.kind).sort();
+  assert.deepEqual(bad, ['Check', 'LightenedDream']);
+  assert.equal(list.filter((d) => !d.unsupported).length, 1);
 });

@@ -6,14 +6,15 @@ A desktop dream journal (it runs in its own window, not a browser) that walks yo
 
 - **Journal tree.** Dreams are grouped by year, then month, from any folders you add (sub-folders are scanned too). It has search, a list of recent dreams and a few stats.
 - **New dream form.** Title, date (filled in with today's date) and your recollection, plus optional time, sleep and wake times, lucidity and clarity.
-- **Guided interpretation workflow:**
-  1. The AI lists the dream's details in chronological order.
-  2. A second call converts that list to strict JSON (using Ollama's structured output), and the app parses it.
-  3. Chat on the left, notes on the right. The AI goes through **each detail one at a time** and asks what it reminds you of and what it means to you. When it decides a detail has been covered it moves on by itself. You can also click **Next detail** or **Skip** at any time.
-  4. After each detail, your answers are summarised into bullet points and added to the **Notes**. The notes are editable at any time.
-  5. When the first list is finished, the AI turns your notes into the same strict detail list of **new threads** (people, memories and themes that came up). Duplicates of details you've already covered are dropped, and you're walked through the new ones.
-  6. Finally the notes are compiled into a **dream interpretation**, shown in its own tab (switch between **Dream / Notes / Interpretation**).
-  7. **Discuss the interpretation.** Challenge it, add context, and the AI revises it, or click **Rewrite interpretation**. Earlier versions are kept, so you can go back to one.
+- **Guided interpretation workflow.** Every AI step is a **fresh thread** that starts from no previous messages and gets only what it needs. This keeps small local models focused.
+  1. **Extract.** One thread lists the dream's details in chronological order. A second thread converts that list to strict JSON (using Ollama's structured output), and the app parses it.
+  2. **Ask.** For each detail, a new thread is given *only that detail* and writes one question that draws out your associations. Use **Different question** to get another one, or **Skip**.
+  3. **Answer.** You reply. The AI does **not** respond. Instead, a new thread is given the detail, the question and your answer, and structures your answer into tidy notes. Those go into the **Notes** (editable at any time), then the next detail comes up.
+  4. **Second pass** (optional, on by default). New leads that came up in your notes (people, memories, themes) are extracted into the same strict list. Anything already covered is dropped, and each new lead goes through steps 2–3.
+  5. **Analyse.** Four separate threads each build one document from your notes: *Themes*, *Emotions*, *Key details & symbols* and *Waking-life connections*. These appear in the **Analysis** tab. **Re-run analysis** rebuilds them after you edit your notes.
+  6. **Interpret.** A final thread writes the interpretation from the dream and the four analysis documents. It never gets the raw notes.
+  7. **Discuss.** You can chat about the interpretation like a normal chatbot. **Compact** summarises everything before the last exchange, so the model then sees *interpretation → conversation summary → last user message → last reply*. **Rewrite interpretation** produces a new version from the discussion. Earlier versions are kept.
+- **Lightened Dream compatible.** `.ld3` is the [Lightened Dream](https://github.com/lucidcode/Lightened-Dream) format. Lightened Dream also uses `.ld3` for files that aren't dreams (reality checks, readings, REM cycles, ignore lists, …). Those are hidden from the journal and listed under an *unsupported files* notice.
 - **Pick a model** from the top bar. The model list comes from your Ollama install.
 - Everything is **saved as you go**. You can close a dream partway through and resume later.
 
@@ -60,7 +61,7 @@ Click ⚙ in the top-right:
 |---|---|
 | Dream fields (date, title, recollection, …) | The `.ld3` file |
 | Notes + final interpretation | The `.ld3` file's `<Comments>` field. Notes come first, then a `==== Dream Interpretation ====` line, then the interpretation |
-| Chat history and workflow progress | The app's user-data folder (`sessions/`), keyed by file path |
+| Chat history, analysis documents and workflow progress | The app's user-data folder (`sessions/`), keyed by file path |
 | Settings | The app's user-data folder (`settings.json`) |
 
 When the app saves an **existing** `.ld3` file, it only edits the fields it knows about. Everything else is left as it was: unknown elements, `SubCategories` content, line endings (CRLF/LF) and the file's encoding (UTF-8, UTF-8 with BOM, or UTF-16). New files are named `YYYY-MM-DD Title.ld3` and follow this layout:

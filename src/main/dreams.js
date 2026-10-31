@@ -64,7 +64,8 @@ async function scan(directories) {
           mtime: st.mtimeMs,
         };
       } catch (err) {
-        return { path: file, root, error: err.message, title: path.basename(file), date: '', mtime: 0 };
+        // Not a dream (another Lightened Dream document type) or unreadable: flagged as unsupported.
+        return { path: file, root, relDir: path.relative(root, path.dirname(file)), unsupported: true, kind: err.kind || 'unreadable', reason: err.message, title: path.basename(file) };
       }
     }),
   );

@@ -10,6 +10,7 @@ const DEFAULTS = {
   ollamaHost: 'http://127.0.0.1:11434',
   model: '',
   temperature: 0.7,
+  secondPass: true,
 };
 
 class Store {

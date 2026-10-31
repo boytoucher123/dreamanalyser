@@ -41,6 +41,7 @@
               <input id="searchInput" type="search" placeholder="Search dreams…" />
             </div>
             <div id="tree" class="tree"></div>
+            <div id="unsupported" class="unsupported hidden"></div>
             <button id="addDirBtn" class="btn ghost full" data-icon-left="folder">Add dream folder</button>
           </aside>
 
@@ -145,6 +146,7 @@
               <div class="tabs" role="tablist">
                 <button class="tab" data-tab="dream" role="tab">Dream</button>
                 <button class="tab active" data-tab="notes" role="tab">Notes</button>
+                <button class="tab" data-tab="analysis" role="tab">Analysis</button>
                 <button class="tab" data-tab="interp" role="tab">Interpretation<span id="interpBadge" class="badge hidden"></span></button>
               </div>
               <div class="tab-panels">
@@ -153,6 +155,14 @@
                 </div>
                 <div class="tab-panel active" data-panel="notes">
                   <textarea id="notesInput" class="notes" spellcheck="true" placeholder="Your notes will build up here as you explore the dream. Feel free to edit them at any time."></textarea>
+                </div>
+                <div class="tab-panel" data-panel="analysis">
+                  <div class="interp-toolbar">
+                    <span class="muted small">Built from your notes by separate AI threads, then used to write the interpretation.</span>
+                    <div class="spacer"></div>
+                    <button class="btn ghost small" data-action="reanalyse" data-icon-left="refresh">Re-run analysis</button>
+                  </div>
+                  <div id="analysisView" class="analysis"></div>
                 </div>
                 <div class="tab-panel" data-panel="interp">
                   <div class="interp-toolbar">
@@ -201,6 +211,12 @@
             <input id="tempInput" type="range" min="0" max="1.5" step="0.05" />
           </label>
         </div>
+
+        <h3>Workflow</h3>
+        <label class="check">
+          <input type="checkbox" id="secondPassInput" />
+          <span><b>Second pass</b> — after the dream's details, explore new leads (people, memories, themes) that came up in your notes</span>
+        </label>
 
         <h3>Dream folders</h3>
         <p class="muted small">All <code>.ld3</code> files in these folders (and their sub-folders) appear in your journal. New dreams are saved into the folder marked ★.</p>

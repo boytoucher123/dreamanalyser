@@ -80,9 +80,34 @@ function fieldRegex(name) {
   return new RegExp(`<${name}(?:\\s[^>]*)?>([\\s\\S]*?)</${name}\\s*>|<${name}(?:\\s[^>]*)?/>`, 'i');
 }
 
+/**
+ * Name of the document's root element. Lightened Dream uses the .ld3 extension
+ * for several document types (<Dream>, <Check>, <Reading>, <REM>, <Recording>,
+ * <Subliminal>, <Category>, <LightenedDream> ignore lists, …); only <Dream> is a dream.
+ */
+function rootElement(text) {
+  const s = String(text)
+    .replace(/^\uFEFF/, '')
+    .replace(/<\?[\s\S]*?\?>/g, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/<!DOCTYPE[^>]*>/gi, '');
+  const m = /<([A-Za-z_][\w.:-]*)/.exec(s);
+  return m ? m[1] : null;
+}
+
+function isDream(text) {
+  return (rootElement(text) || '').toLowerCase() === 'dream';
+}
+
 /** Parse .ld3 text into a plain object with one string per field. */
 function parse(text) {
   text = String(text).replace(/^﻿/, '');
+  const root = rootElement(text);
+  if (root && root.toLowerCase() !== 'dream') {
+    const err = new Error(`Not a dream: this .ld3 file is a <${root}> document`);
+    err.kind = root;
+    throw err;
+  }
   const loc = locateOuter(text);
   if (!loc) throw new Error('Not a valid .ld3 dream file (no <Dream> element found)');
   const inner = text.slice(loc.innerStart, loc.innerEnd);
@@ -146,4 +171,4 @@ function create(fields, eol = '\n') {
   return lines.join(eol) + eol;
 }
 
-module.exports = { FIELDS, parse, update, create, decodeBuffer, encodeText, detectEol, encodeEntities, decodeEntities };
+module.exports = { FIELDS, parse, rootElement, isDream, update, create, decodeBuffer, encodeText, detectEol, encodeEntities, decodeEntities };
