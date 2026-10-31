@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'"
+    />
+    <title>Dream Analyser</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <canvas id="sky" aria-hidden="true"></canvas>
+    <div class="aurora" aria-hidden="true"><span></span><span></span><span></span></div>
+
+    <div id="app">
+      <header class="topbar">
+        <button id="homeBtn" class="brand" title="Dream journal">
+          <span class="brand-moon"></span>
+          <span class="brand-name">Dream Analyser</span>
+        </button>
+        <div class="spacer"></div>
+        <div class="model-picker" title="Ollama model">
+          <span id="ollamaDot" class="status-dot"></span>
+          <select id="modelSelect"></select>
+          <button id="refreshModelsBtn" class="icon-btn small" title="Refresh models" data-icon="refresh"></button>
+        </div>
+        <button id="settingsBtn" class="icon-btn" title="Settings" data-icon="settings"></button>
+      </header>
+
+      <main>
+        <!-- HOME -->
+        <section id="view-home" class="view active">
+          <aside class="sidebar glass">
+            <div class="sidebar-head">
+              <h2>Dream Journal</h2>
+              <button id="rescanBtn" class="icon-btn small" title="Rescan folders" data-icon="refresh"></button>
+            </div>
+            <div class="search">
+              <span data-icon="search"></span>
+              <input id="searchInput" type="search" placeholder="Search dreams…" />
+            </div>
+            <div id="tree" class="tree"></div>
+            <button id="addDirBtn" class="btn ghost full" data-icon-left="folder">Add dream folder</button>
+          </aside>
+
+          <div class="home-main">
+            <div class="hero">
+              <div class="moon"><div class="moon-glow"></div></div>
+              <h1>What did you dream?</h1>
+              <p>Capture it before it fades — then unravel it, one detail at a time.</p>
+              <button id="newDreamBtn" class="btn primary big" data-icon-left="sparkle">Record a new dream</button>
+            </div>
+            <div id="stats" class="stats"></div>
+            <div class="recent-wrap">
+              <h3 class="section-title">Recent dreams</h3>
+              <div id="recent" class="recent"></div>
+            </div>
+          </div>
+        </section>
+
+        <!-- FORM -->
+        <section id="view-form" class="view">
+          <form id="dreamForm" class="form-card glass" autocomplete="off">
+            <div class="form-head">
+              <button type="button" id="formBackBtn" class="icon-btn" title="Back" data-icon="back"></button>
+              <h2 id="formHeading">A new dream</h2>
+            </div>
+            <div class="form-grid">
+              <label class="field grow">
+                <span>Title</span>
+                <input name="Title" required placeholder="Give your dream a name…" maxlength="200" />
+              </label>
+              <label class="field">
+                <span>Date</span>
+                <input name="Date" type="date" required />
+              </label>
+            </div>
+            <label class="field">
+              <span>Recollection</span>
+              <textarea name="Dream" required rows="12" placeholder="Write everything you remember — places, people, feelings, colours, odd little moments. Don't worry about order or sense."></textarea>
+            </label>
+
+            <details class="more">
+              <summary>More details <small>(time, sleep, lucidity, clarity)</small></summary>
+              <div class="form-grid four">
+                <label class="field"><span>Time recorded</span><input name="Time" type="time" /></label>
+                <label class="field"><span>Fell asleep</span><input name="Sleep" type="time" /></label>
+                <label class="field"><span>Woke up</span><input name="Awake" type="time" /></label>
+              </div>
+              <div class="form-grid">
+                <div class="field">
+                  <span>Lucidity</span>
+                  <div class="rating" data-name="Lucidity"></div>
+                </div>
+                <div class="field">
+                  <span>Clarity</span>
+                  <div class="rating" data-name="Clarity"></div>
+                </div>
+              </div>
+            </details>
+
+            <div class="form-actions">
+              <span class="hint">Ctrl + Enter to interpret</span>
+              <div class="spacer"></div>
+              <button type="button" id="formSaveOnlyBtn" class="btn ghost">Save only</button>
+              <button type="submit" id="formSubmitBtn" class="btn primary" data-icon-left="sparkle">Interpret this dream</button>
+            </div>
+          </form>
+        </section>
+
+        <!-- SESSION -->
+        <section id="view-session" class="view">
+          <div class="session-head glass">
+            <button id="sessionBackBtn" class="icon-btn" title="Back to journal" data-icon="back"></button>
+            <div class="session-title">
+              <h2 id="sTitle"></h2>
+              <div id="sMeta" class="meta"></div>
+            </div>
+            <div id="phasePill" class="phase-pill"></div>
+            <div class="spacer"></div>
+            <span id="saveState" class="save-state"></span>
+            <button id="editDreamBtn" class="btn ghost small" data-icon-left="edit">Edit dream</button>
+            <button id="restartBtn" class="btn ghost small" data-icon-left="restart">Restart analysis</button>
+            <button id="revealBtn" class="icon-btn small" title="Show file" data-icon="folder"></button>
+            <button id="deleteBtn" class="icon-btn small danger" title="Delete dream" data-icon="trash"></button>
+          </div>
+
+          <div class="session-body" id="sessionBody">
+            <div class="chat-pane glass">
+              <div id="detailStrip" class="detail-strip"></div>
+              <div id="messages" class="messages"></div>
+              <div class="composer">
+                <div id="composerActions" class="composer-actions"></div>
+                <div class="composer-box">
+                  <textarea id="chatInput" rows="1" placeholder="Share what comes to mind…"></textarea>
+                  <button id="sendBtn" class="send-btn" title="Send (Enter)" data-icon="send"></button>
+                </div>
+              </div>
+            </div>
+
+            <div id="splitter" class="splitter" title="Drag to resize"></div>
+
+            <div class="side-pane glass">
+              <div class="tabs" role="tablist">
+                <button class="tab" data-tab="dream" role="tab">Dream</button>
+                <button class="tab active" data-tab="notes" role="tab">Notes</button>
+                <button class="tab" data-tab="interp" role="tab">Interpretation<span id="interpBadge" class="badge hidden"></span></button>
+              </div>
+              <div class="tab-panels">
+                <div class="tab-panel" data-panel="dream">
+                  <div id="dreamPanel" class="dream-panel"></div>
+                </div>
+                <div class="tab-panel active" data-panel="notes">
+                  <textarea id="notesInput" class="notes" spellcheck="true" placeholder="Your notes will build up here as you explore the dream. Feel free to edit them at any time."></textarea>
+                </div>
+                <div class="tab-panel" data-panel="interp">
+                  <div class="interp-toolbar">
+                    <button id="interpEditBtn" class="btn ghost small" data-icon-left="edit">Edit</button>
+                    <button id="interpUndoBtn" class="btn ghost small" data-icon-left="undo">Previous version</button>
+                    <div class="spacer"></div>
+                    <span id="interpVersion" class="muted small"></span>
+                  </div>
+                  <div id="interpView" class="interp markdown"></div>
+                  <textarea id="interpInput" class="notes hidden"></textarea>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- SETTINGS MODAL -->
+    <div id="settingsModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <div class="modal-card glass">
+        <div class="modal-head">
+          <h2 id="settingsTitle">Settings</h2>
+          <button class="icon-btn" data-close title="Close" data-icon="close"></button>
+        </div>
+
+        <h3>Ollama</h3>
+        <div class="form-grid">
+          <label class="field grow">
+            <span>Server address</span>
+            <input id="hostInput" placeholder="http://127.0.0.1:11434" />
+          </label>
+          <div class="field">
+            <span>&nbsp;</span>
+            <button id="testHostBtn" class="btn ghost">Test connection</button>
+          </div>
+        </div>
+        <div id="hostStatus" class="muted small"></div>
+        <div class="form-grid">
+          <label class="field grow">
+            <span>Model</span>
+            <select id="settingsModel"></select>
+          </label>
+          <label class="field grow">
+            <span>Creativity (temperature) <b id="tempValue"></b></span>
+            <input id="tempInput" type="range" min="0" max="1.5" step="0.05" />
+          </label>
+        </div>
+
+        <h3>Dream folders</h3>
+        <p class="muted small">All <code>.ld3</code> files in these folders (and their sub-folders) appear in your journal. New dreams are saved into the folder marked ★.</p>
+        <ul id="dirList" class="dir-list"></ul>
+        <button id="settingsAddDirBtn" class="btn ghost" data-icon-left="folder">Add folder</button>
+
+        <div class="modal-actions">
+          <div class="spacer"></div>
+          <button class="btn primary" data-close>Done</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="toasts" class="toasts"></div>
+
+    <script src="js/icons.js"></script>
+    <script src="js/util.js"></script>
+    <script src="js/prompts.js"></script>
+    <script src="js/sky.js"></script>
+    <script src="js/app.js"></script>
+  </body>
+</html>

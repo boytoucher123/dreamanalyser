@@ -1,0 +1,55 @@
+{
+  "name": "dream-analyser",
+  "productName": "Dream Analyser",
+  "version": "1.0.0",
+  "description": "A desktop dream journal that walks you through interpreting your dreams with a local Ollama model. Reads and writes .ld3 dream files.",
+  "main": "src/main/main.js",
+  "author": "George Gunter",
+  "license": "MIT",
+  "private": true,
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test test/*.test.js",
+    "dist": "electron-builder",
+    "dist:win": "electron-builder --win",
+    "dist:mac": "electron-builder --mac",
+    "dist:linux": "electron-builder --linux"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.dreamanalyser.app",
+    "productName": "Dream Analyser",
+    "files": [
+      "src/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "buildResources": "build",
+      "output": "dist"
+    },
+    "fileAssociations": [
+      {
+        "ext": "ld3",
+        "name": "Dream",
+        "description": "Dream journal entry"
+      }
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.png"
+    },
+    "mac": {
+      "target": "dmg",
+      "icon": "build/icon.png",
+      "category": "public.app-category.lifestyle"
+    },
+    "linux": {
+      "target": "AppImage",
+      "icon": "build/icon.png",
+      "category": "Utility"
+    }
+  }
+}
