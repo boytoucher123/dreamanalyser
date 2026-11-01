@@ -81,10 +81,21 @@
                 <input name="Date" type="date" required />
               </label>
             </div>
-            <label class="field">
-              <span>Recollection</span>
-              <textarea name="Dream" required rows="12" placeholder="Write everything you remember — places, people, feelings, colours, odd little moments. Don't worry about order or sense."></textarea>
-            </label>
+            <div class="field dictation-field">
+              <div class="field-head">
+                <label for="dreamText">Recollection</label>
+                <div class="spacer"></div>
+                <button type="button" id="dictateBtn" class="btn ghost small" data-icon-left="mic" title="Speak your dream; it's transcribed with Whisper and tidied by the AI">Dictate</button>
+                <button type="button" id="uploadAudioBtn" class="btn ghost small" data-icon-left="upload" title="Transcribe a recording (.m4a, .mp3, .wav…). You can also drop a file onto the box.">Upload recording</button>
+              </div>
+              <textarea id="dreamText" name="Dream" required rows="12" placeholder="Write everything you remember — places, people, feelings, colours, odd little moments. Don't worry about order or sense. Or dictate it, or drop in a voice recording."></textarea>
+              <div id="dictationBar" class="dictation-bar hidden" aria-live="polite">
+                <span id="dictationDot" class="dictation-dot"></span>
+                <span id="dictationText" class="dictation-text"></span>
+                <div class="spacer"></div>
+                <span id="dictationActions" class="dictation-actions"></span>
+              </div>
+            </div>
 
             <details class="more">
               <summary>More details <small>(time, sleep, lucidity, clarity)</small></summary>
@@ -230,6 +241,50 @@
           <span><b>Lightened Dream file layout</b> — save new dreams as <code>Year/Month/DD Title.ld3</code> (otherwise <code>YYYY-MM-DD Title.ld3</code>)</span>
         </label>
 
+        <h3>Speech to text</h3>
+        <p class="muted small">Dictated and uploaded recordings are transcribed on this computer with <a href="https://github.com/openai/whisper" target="_blank">OpenAI Whisper</a> (<code>pip install -U openai-whisper</code>), which needs <a href="https://ffmpeg.org/download.html" target="_blank">FFmpeg</a>.</p>
+        <div class="form-grid">
+          <label class="field grow">
+            <span>Python command</span>
+            <input id="pythonInput" placeholder="python" spellcheck="false" />
+          </label>
+          <label class="field">
+            <span>Whisper model</span>
+            <select id="whisperModelInput">
+              <option value="tiny">tiny</option>
+              <option value="base">base</option>
+              <option value="small">small</option>
+              <option value="medium">medium</option>
+              <option value="large">large</option>
+              <option value="turbo">turbo</option>
+              <option value="tiny.en">tiny.en</option>
+              <option value="base.en">base.en</option>
+              <option value="small.en">small.en</option>
+              <option value="medium.en">medium.en</option>
+            </select>
+          </label>
+        </div>
+        <div class="form-grid">
+          <label class="field grow">
+            <span>FFmpeg folder <small>(blank if it's already on PATH)</small></span>
+            <input id="ffmpegInput" placeholder="C:\ffmpeg\bin" spellcheck="false" />
+          </label>
+          <label class="field">
+            <span>Language</span>
+            <input id="whisperLangInput" placeholder="auto-detect" maxlength="20" spellcheck="false" title="Leave blank to detect automatically, or enter a code such as en" />
+          </label>
+        </div>
+        <div class="form-grid">
+          <div class="field">
+            <button id="testWhisperBtn" class="btn ghost">Test speech to text</button>
+          </div>
+          <div id="whisperStatus" class="muted small whisper-status"></div>
+        </div>
+        <label class="check">
+          <input type="checkbox" id="tidyDictationInput" />
+          <span><b>Tidy transcripts with AI</b> — put the dictated events in order and remove repetition before adding them to the recollection</span>
+        </label>
+
         <h3>Categories folder</h3>
         <div class="dir-list cat-root-row"><span id="catRootPath" class="path"></span>
           <button id="catRootBtn" class="btn ghost small" data-icon-left="folder">Choose…</button></div>
@@ -254,6 +309,7 @@
     <script src="js/prompts.js"></script>
     <script src="js/sky.js"></script>
     <script src="js/categories.js"></script>
+    <script src="js/dictation.js"></script>
     <script src="js/app.js"></script>
   </body>
 </html>

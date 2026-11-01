@@ -6,6 +6,7 @@ A desktop dream journal (it runs in its own window, not a browser) that walks yo
 
 - **Journal tree.** Dreams are grouped by year, then month, from any folders you add (sub-folders are scanned too). It has search, a list of recent dreams and a few stats.
 - **New dream form.** Title, date (filled in with today's date) and your recollection, plus optional time, sleep and wake times, lucidity and clarity.
+- **Dictate your dream, or upload a voice memo.** Above the Recollection box, **Dictate** records from your microphone and **Upload recording** takes an audio file (`.m4a` voice memos, `.mp3`, `.wav`, …). You can also drop a file onto the box. The audio is transcribed on your computer with [OpenAI Whisper](https://github.com/openai/whisper). Then the selected Ollama model rewrites the half-awake ramble as a clean account: events in the order they happened in the dream, repetition and self-corrections merged, filler removed, every detail kept. The result is added to the Recollection box so you can edit it before saving. **Show raw transcript** swaps back to exactly what Whisper heard. Nothing leaves your machine.
 - **Guided interpretation workflow.** Every AI step is a **fresh thread** that starts from no previous messages and gets only what it needs. This keeps small local models focused.
   1. **Extract.** One thread lists the dream's details in chronological order. A second thread converts that list to strict JSON (using Ollama's structured output), and the app parses it.
   2. **Ask.** For each detail, a new thread is given *only that detail* and writes one question that draws out your associations. Use **Different question** to get another one, or **Skip**.
@@ -34,6 +35,26 @@ A desktop dream journal (it runs in its own window, not a browser) that walks yo
   ```
 
   Larger or instruction-tuned models (e.g. `llama3.1:8b`, `qwen2.5:14b`, `gemma2:9b`, `mistral-nemo`) follow the workflow best. Models that "think" (deepseek-r1, qwen3) also work. Their reasoning is hidden.
+
+### Speech to text (optional)
+
+Dictation and audio uploads use your own Python install of Whisper:
+
+```bash
+pip install -U openai-whisper
+```
+
+You also need [FFmpeg](https://ffmpeg.org/download.html). Whisper uses it to read `.m4a` and other formats.
+
+Then open **Settings → Speech to text**:
+
+- **Python command**: the Python that has Whisper installed. Defaults to `python` on Windows and `python3` elsewhere. A full path to `python.exe` or a launcher such as `py -3` also works.
+- **Whisper model**: defaults to `medium`. Models you've already downloaded (in `~/.cache/whisper`) are reused, so this is the same model as `whisper.load_model("medium")`.
+- **FFmpeg folder**: the folder containing `ffmpeg.exe`, e.g. `C:\ffmpeg\bin`. Leave it blank if FFmpeg is already on your PATH.
+- **Language**: blank to detect automatically, or a code such as `en`.
+- **Tidy transcripts with AI**: turn this off to insert the raw transcript as is.
+
+**Test speech to text** loads the model and reports whether it's using the GPU or the CPU. The model stays loaded between dictations and is released after 10 idle minutes. When you press **Dictate**, the model starts loading straight away, so it's usually ready by the time you finish speaking.
 
 ## Run it
 
