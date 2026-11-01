@@ -34,7 +34,7 @@
 
   const cleanErr = (e) => String(e?.message || e).replace(/^Error invoking remote method '[^']+':\s*(Error:\s*)?/, '');
 
-  async function llm(messages, { onToken, format, temperature } = {}) {
+  async function llm(messages, { onToken, format, temperature, numCtx } = {}) {
     const model = S.settings.model;
     if (!model) throw new Error('No model selected — choose an Ollama model in the top bar.');
     const id = `req${++reqCounter}`;
@@ -48,7 +48,7 @@
       const request = {
         model,
         messages,
-        options: { temperature: temperature ?? S.settings.temperature ?? 0.7, num_ctx: 8192 },
+        options: { temperature: temperature ?? S.settings.temperature ?? 0.7, num_ctx: numCtx || 8192 },
       };
       if (format) request.format = format;
       const r = await api.chat(id, request);
@@ -128,6 +128,8 @@
   }
 
   function showView(name) {
+    // Leaving the dream form stops any recording/transcription in progress.
+    if (name !== 'form' && document.body.dataset.view === 'form') window.Dictation.reset();
     $$('.view').forEach((v) => v.classList.toggle('active', v.id === `view-${name}`));
     document.body.dataset.view = name;
     $$('.nav-btn').forEach((b) => b.classList.toggle('active', b.dataset.nav === (name === 'categories' ? 'categories' : 'journal')));
@@ -289,6 +291,7 @@
   }
 
   function openForm(mode = 'new', returnTo = 'home') {
+    window.Dictation.reset();
     S.form = { mode, returnTo };
     const f = $('#dreamForm');
     f.reset();
@@ -328,6 +331,10 @@
 
   async function submitForm(startAfter) {
     const f = $('#dreamForm');
+    if (window.Dictation.busy()) {
+      toast('Wait for the dictation to finish first.', 'warn');
+      return;
+    }
     if (!f.reportValidity()) return;
     const values = readForm();
     const buttons = $$('.form-actions button');
@@ -1270,6 +1277,12 @@
     $('#tempValue').textContent = Number(S.settings.temperature).toFixed(2);
     $('#secondPassInput').checked = S.settings.secondPass !== false;
     $('#layoutInput').checked = S.settings.saveLayout !== 'flat';
+    $('#pythonInput').value = S.settings.pythonPath || '';
+    $('#whisperModelInput').value = S.settings.whisperModel || 'medium';
+    $('#ffmpegInput').value = S.settings.ffmpegDir || '';
+    $('#whisperLangInput').value = S.settings.whisperLanguage || '';
+    $('#tidyDictationInput').checked = S.settings.tidyDictation !== false;
+    $('#whisperStatus').textContent = '';
     renderCatRoot();
     $('#hostStatus').textContent = S.ollamaOk ? `Connected · ${S.models.length} models available` : 'Not connected';
     renderDirList();
@@ -1502,6 +1515,37 @@
         renderCatRoot();
       }
     });
+    // Speech to text
+    const sttSetting = (sel, key, read = (el) => el.value.trim()) =>
+      $(sel).addEventListener('change', async (e) => {
+        S.settings = await api.setSettings({ [key]: read(e.target) });
+      });
+    sttSetting('#pythonInput', 'pythonPath');
+    sttSetting('#whisperModelInput', 'whisperModel');
+    sttSetting('#ffmpegInput', 'ffmpegDir', (el) => el.value.trim().replace(/^"(.*)"$/, '$1'));
+    sttSetting('#whisperLangInput', 'whisperLanguage', (el) => el.value.trim().toLowerCase());
+    sttSetting('#tidyDictationInput', 'tidyDictation', (el) => el.checked);
+    $('#testWhisperBtn').addEventListener('click', async (e) => {
+      const btn = e.currentTarget;
+      // Save whatever is typed, even if the field hasn't lost focus yet.
+      S.settings = await api.setSettings({
+        pythonPath: $('#pythonInput').value.trim(),
+        whisperModel: $('#whisperModelInput').value,
+        ffmpegDir: $('#ffmpegInput').value.trim().replace(/^"(.*)"$/, '$1'),
+        whisperLanguage: $('#whisperLangInput').value.trim().toLowerCase(),
+      });
+      btn.disabled = true;
+      $('#whisperStatus').textContent = `Loading Whisper "${S.settings.whisperModel}"… this can take a minute.`;
+      try {
+        const r = await api.testWhisper();
+        $('#whisperStatus').textContent = `Working — Whisper "${r.model}" loaded on ${r.device === 'cpu' ? 'the CPU' : `the GPU (${r.device})`}.`;
+      } catch (err) {
+        $('#whisperStatus').textContent = cleanErr(err);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
     $('#secondPassInput').addEventListener('change', async (e) => {
       S.settings = await api.setSettings({ secondPass: e.target.checked });
     });
@@ -1538,6 +1582,7 @@
   async function init() {
     window.App = { S, api, $, $$, esc, U, P, icon, toast, cleanErr, showView, openDream, refreshDreams, llm, ensureModel, scheduleSave, leaveTo };
     window.Categories.init();
+    window.Dictation.init();
     window.hydrateIcons();
     setupRatings();
     S.settings = await api.getSettings();

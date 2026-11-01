@@ -1,15 +1,25 @@
 'use strict';
-const { app, BrowserWindow, ipcMain, dialog, shell, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, Menu, session, systemPreferences } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { Store } = require('./store');
 const dreams = require('./dreams');
 const ollama = require('./ollama');
 const categories = require('./categories');
+const { Transcriber } = require('./transcriber');
 
 let win = null;
 let store = null;
 const activeRequests = new Map();
+let transcriber = null;
+
+const AUDIO_EXTENSIONS = ['m4a', 'mp3', 'wav', 'ogg', 'oga', 'opus', 'webm', 'flac', 'aac', 'mp4', 'wma', 'amr', '3gp'];
+
+function recordingsDir() {
+  const dir = path.join(app.getPath('temp'), 'dream-analyser-recordings');
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
 
 function defaultDreamFolder() {
   return path.join(app.getPath('documents'), 'Dreams');
@@ -235,6 +245,46 @@ function registerIpc() {
     }
   });
   ipcMain.on('ollama:abort', (_e, id) => activeRequests.get(id)?.abort());
+
+  /* ---------- Speech to text ---------- */
+  ipcMain.handle('audio:micAccess', async () => {
+    if (process.platform !== 'darwin') return true;
+    if (systemPreferences.getMediaAccessStatus('microphone') === 'granted') return true;
+    return systemPreferences.askForMediaAccess('microphone');
+  });
+  ipcMain.handle('audio:choose', async () => {
+    const r = await dialog.showOpenDialog(win, {
+      title: 'Choose a recording of your dream',
+      properties: ['openFile'],
+      filters: [
+        { name: 'Audio', extensions: AUDIO_EXTENSIONS },
+        { name: 'All files', extensions: ['*'] },
+      ],
+    });
+    return r.canceled ? null : r.filePaths[0];
+  });
+  ipcMain.handle('audio:saveRecording', async (_e, data, ext) => {
+    const safeExt = /^[a-z0-9]{1,5}$/i.test(ext || '') ? ext : 'webm';
+    const file = path.join(recordingsDir(), `dictation-${Date.now()}.${safeExt}`);
+    await fs.promises.writeFile(file, Buffer.from(data));
+    return file;
+  });
+  ipcMain.handle('audio:discardRecording', async (_e, file) => {
+    // Only ever delete our own temporary recordings, never a file the user picked.
+    if (file && path.dirname(path.resolve(file)) === recordingsDir()) await fs.promises.rm(file, { force: true });
+  });
+  ipcMain.handle('audio:warmup', () => {
+    transcriber.start();
+  });
+  ipcMain.handle('audio:transcribe', async (_e, file) => {
+    const s = store.getSettings();
+    return transcriber.transcribe(file, { language: s.whisperLanguage });
+  });
+  ipcMain.handle('audio:cancel', () => transcriber.cancel());
+  ipcMain.handle('audio:test', async () => {
+    transcriber.stop();
+    return transcriber.start();
+  });
 }
 
 // Allows running with an isolated profile, e.g. for testing.
@@ -243,11 +293,35 @@ if (process.env.DREAM_ANALYSER_USER_DATA) app.setPath('userData', process.env.DR
 app.whenReady().then(() => {
   store = new Store(app.getPath('userData'));
   if (process.platform !== 'darwin') Menu.setApplicationMenu(null);
+  transcriber = new Transcriber(
+    () => store.getSettings(),
+    (status) => {
+      if (win && !win.webContents.isDestroyed()) win.webContents.send('audio:status', status);
+    },
+  );
+  // Microphone for dictation: allow audio capture for our own page only, never video.
+  session.defaultSession.setPermissionRequestHandler((wc, permission, callback, details) => {
+    if (permission === 'media') {
+      const types = details.mediaTypes || [];
+      return callback(types.length > 0 && types.every((t) => t === 'audio'));
+    }
+    callback(false);
+  });
+  session.defaultSession.setPermissionCheckHandler((_wc, permission) => permission === 'media');
   registerIpc();
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+});
+
+app.on('will-quit', () => {
+  transcriber?.stop();
+  try {
+    fs.rmSync(path.join(app.getPath('temp'), 'dream-analyser-recordings'), { recursive: true, force: true });
+  } catch {
+    /* ignore */
+  }
 });
 
 app.on('window-all-closed', () => {

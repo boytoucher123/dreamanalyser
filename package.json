@@ -26,6 +26,9 @@
       "src/**/*",
       "package.json"
     ],
+    "asarUnpack": [
+      "src/main/whisper_worker.py"
+    ],
     "directories": {
       "buildResources": "build",
       "output": "dist"
@@ -44,7 +47,10 @@
     "mac": {
       "target": "dmg",
       "icon": "build/icon.png",
-      "category": "public.app-category.lifestyle"
+      "category": "public.app-category.lifestyle",
+      "extendInfo": {
+        "NSMicrophoneUsageDescription": "Dream Analyser uses the microphone so you can dictate your dreams."
+      }
     },
     "linux": {
       "target": "AppImage",

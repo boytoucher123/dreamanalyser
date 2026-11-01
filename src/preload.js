@@ -1,5 +1,5 @@
 'use strict';
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('api', {
   getSettings: () => ipcRenderer.invoke('settings:get'),
@@ -32,5 +32,21 @@ contextBridge.exposeInMainWorld('api', {
     const handler = (_e, id, token) => cb(id, token);
     ipcRenderer.on('ollama:token', handler);
     return () => ipcRenderer.removeListener('ollama:token', handler);
+  },
+
+  // Speech to text (local Whisper)
+  micAccess: () => ipcRenderer.invoke('audio:micAccess'),
+  chooseAudio: () => ipcRenderer.invoke('audio:choose'),
+  saveRecording: (data, ext) => ipcRenderer.invoke('audio:saveRecording', data, ext),
+  discardRecording: (file) => ipcRenderer.invoke('audio:discardRecording', file),
+  warmupWhisper: () => ipcRenderer.invoke('audio:warmup'),
+  transcribe: (file) => ipcRenderer.invoke('audio:transcribe', file),
+  cancelTranscription: () => ipcRenderer.invoke('audio:cancel'),
+  testWhisper: () => ipcRenderer.invoke('audio:test'),
+  pathForFile: (file) => webUtils.getPathForFile(file),
+  onTranscribeStatus: (cb) => {
+    const handler = (_e, status) => cb(status);
+    ipcRenderer.on('audio:status', handler);
+    return () => ipcRenderer.removeListener('audio:status', handler);
   },
 });

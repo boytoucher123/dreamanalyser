@@ -299,6 +299,40 @@ ${INTERP_FORMAT}`,
     ];
   }
 
+  /* ---------------- Dictation: tidy a raw speech-to-text transcript (fresh thread) ---------------- */
+
+  function tidyRecollection(transcript) {
+    return [
+      {
+        role: 'system',
+        content:
+          'You are an editor for a dream journal. You turn a rambling, spoken dream recollection into a clean written account. You never add, invent, interpret or explain anything — you only reorganise and tidy what the dreamer actually said.',
+      },
+      {
+        role: 'user',
+        content: `Below is an automatic speech-to-text transcript of someone describing a dream they just woke up from. They were half-awake, so it is probably out of order, repeats itself, jumps back ("oh, and before that…"), corrects itself, and has filler words and transcription mistakes.
+
+Rewrite it as the dreamer's own first-person account of the dream:
+- Put the events in the order they happened IN THE DREAM, using cues like "before that", "at the start", "then", "after", "I forgot to say".
+- Say each thing once. When something is repeated, merge the repetitions and keep every distinct detail from each telling.
+- When the dreamer corrects themselves, keep only the corrected version.
+- Remove filler ("um", "uh", "like", "you know"), false starts and remarks about the act of recording ("ok, so", "let me think").
+- Keep EVERY detail: people, places, objects, colours, sounds, words spoken, feelings, sensations and anything odd. Keep the dreamer's own words and their uncertainty ("I think it was my sister", "it might have been night").
+- Keep comments about waking life only if the dreamer linked them to the dream, and put them where they belong.
+- Fix obvious transcription errors only when the intended word is clear from context.
+- Do not add a title, headings, bullet points, interpretation or commentary. Do not invent connecting events.
+- Write in plain past-tense paragraphs, starting a new paragraph when the scene changes.
+
+Output only the rewritten account.
+
+Transcript:
+"""
+${transcript}
+"""`,
+      },
+    ];
+  }
+
   /* ---------------- Categories: sort unassigned words (fresh thread, JSON) ---------------- */
 
   const GROUP_HINTS = {
@@ -347,6 +381,7 @@ Return JSON: {"assignments":[{"word":"...","group":"..."}]} with one entry per w
   }
 
   window.Prompts = {
+    tidyRecollection,
     sortWords,
     sortWordsSchema,
     DETAIL_SCHEMA,

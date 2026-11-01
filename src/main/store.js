@@ -13,6 +13,12 @@ const DEFAULTS = {
   secondPass: true,
   saveLayout: 'lightened', // 'lightened' = YYYY/MM/DD Title.ld3, 'flat' = YYYY-MM-DD Title.ld3
   categoriesDirectory: '',
+  // Speech to text (local OpenAI Whisper, run through Python)
+  pythonPath: '', // '' = "python" on Windows, "python3" elsewhere
+  whisperModel: 'medium',
+  ffmpegDir: '', // folder containing ffmpeg(.exe), added to PATH for Whisper, e.g. C:\ffmpeg\bin
+  whisperLanguage: '', // '' = detect automatically
+  tidyDictation: true, // reorder/de-duplicate the transcript with the Ollama model
 };
 
 class Store {
